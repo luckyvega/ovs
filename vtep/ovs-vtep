@@ -33,7 +33,7 @@ from six.moves import range
 import six
 
 
-VERSION = "0.99"
+VERSION = "0.99.1"
 
 root_prefix = ""
 
@@ -50,7 +50,7 @@ ls_count = 0
 tun_id = 0
 bfd_bridge = "vtep_bfd"
 bfd_ref = {}
-
+database = None
 
 def call_prog(prog, args_list):
     cmd = [prog, "-vconsole:off"] + args_list
@@ -71,13 +71,43 @@ def ovs_ofctl(args):
 
 
 def vtep_ctl(args):
-    return call_prog("vtep-ctl", shlex.split(args))
+    args_list = shlex.split(args)
+    if database is not None:
+        args_list = [database] + args_list
+    print("vtep-ctl %s" % args_list)
+    return call_prog("vtep-ctl", args_list)
 
 
 def unixctl_exit(conn, unused_argv, unused_aux):
     global exiting
     exiting = True
     conn.reply(None)
+
+
+class Vtep_Query(object):
+    def __init__(self, table,condition,value):
+        self.table = table
+        self.condition = condition
+        self.value = value
+
+    def result_set(self):
+        results = []
+        result = {}
+        query = vtep_ctl("find %s %s=%s" %(
+            self.table,
+            self.condition,
+            self.value) ).splitlines()
+        if ':' in row:
+            key, value = row.split(' :')
+            value = value.strip()
+            if value == '""':
+                result[key.strip()] = None
+            else:
+                result[key.strip()] = value
+        else:
+            results.append(result)
+            result = {}
+        return results
 
 
 class Logical_Switch(object):
@@ -88,6 +118,7 @@ class Logical_Switch(object):
         self.short_name = "vtep_ls" + str(ls_count)
         vlog.info("creating lswitch %s (%s)" % (self.name, self.short_name))
         self.ports = {}
+        # key = dest_ip, value = (ovs_port_no, tun_name, tunnel['dest_ip']))
         self.tunnels = {}
         self.local_macs = set()
         self.remote_macs = {}
@@ -173,12 +204,18 @@ class Logical_Switch(object):
         del self.ports[lbinding]
         self.update_flood()
 
+    # tunnel is a dict { tunnel_type: xx, dest_ip: x.x.x.x, tunnel_key: kk }
     def add_tunnel(self, tunnel):
         global tun_id
-        vlog.info("adding tunnel %s" % tunnel)
-        encap, ip = tunnel.split("/")
+        if tunnel['tunnel_key'] is None:
+            tunnel_key = self.tunnel_key
+        vlog.info("%s adding tunnel type %s  dest_ip = %s key = %s" % (
+                  self.short_name,
+                  tunnel['tunnel_type'],
+                  tunnel['dest_ip'],
+                  tunnel_key )
 
-        if encap != "vxlan_over_ipv4":
+        if tunnel['tunnel_type'] != "vxlan_over_ipv4":
             vlog.warn("unsupported tunnel format %s" % encap)
             return
 
@@ -187,7 +224,8 @@ class Logical_Switch(object):
 
         ovs_vsctl("add-port %s %s -- set Interface %s type=vxlan "
                   "options:key=%s options:remote_ip=%s"
-                  % (self.short_name, tun_name, tun_name, self.tunnel_key, ip))
+                  % (self.short_name, tun_name,
+                     tun_name, tunnel_key,tunnel['dest_ip'] ) )
 
         for i in range(10):
             port_no = ovs_vsctl("get Interface %s ofport" % tun_name)
@@ -201,9 +239,9 @@ class Logical_Switch(object):
             # Give the system a moment to allocate the port number
             time.sleep(0.5)
 
-        self.tunnels[tunnel] = (port_no, tun_name, ip)
+        self.tunnels[tunnel['dest_ip']] = (port_no, tun_name, tunnel['dest_ip'])
 
-        add_bfd(ip)
+        add_bfd(tunnel['dest_ip'])
 
         ovs_ofctl("add-flow %s table=0,priority=1000,in_port=%s,"
                   "actions=resubmit(,1)"
@@ -212,14 +250,14 @@ class Logical_Switch(object):
     def del_tunnel(self, tunnel):
         vlog.info("removing tunnel %s" % tunnel)
 
-        port_no, tun_name, remote_ip = self.tunnels[tunnel]
+        port_no, tun_name, remote_ip = self.tunnels[tunnel['dest_ip']]
         ovs_ofctl("del-flows %s table=0,in_port=%s"
                     % (self.short_name, port_no))
         ovs_vsctl("del-port %s %s" % (self.short_name, tun_name))
 
         del_bfd(remote_ip)
 
-        del self.tunnels[tunnel]
+        del self.tunnels[tunnel['dest_ip']]
 
     def update_local_macs(self):
         flows = ovs_ofctl("dump-flows %s cookie=0x5000/-1,table=1"
@@ -240,7 +278,7 @@ class Logical_Switch(object):
 
         self.local_macs = macs
 
-    def add_remote_mac(self, mac, tunnel):
+    def add_remote_mac(self, mac, tunnel_peer):
         port_no = self.tunnels.get(tunnel, (0, ""))[0]
         if not port_no:
             return
@@ -251,10 +289,17 @@ class Logical_Switch(object):
     def del_remote_mac(self, mac):
         ovs_ofctl("del-flows %s table=1,dl_dst=%s" % (self.short_name, mac))
 
+    def get_tunnel_info(self, entry):
+        values  = {}
+        values['tunnel_type'] = entry[2]
+        values['dest_ip'] = entry[3]
+        values['tunnel_key'] = entry[4]
+        return values
+
     def update_remote_macs(self):
         remote_macs = {}
         unknown_dsts = set()
-        tunnels = set()
+        tunnels = {}
         parse_ucast = True
 
         mac_list = vtep_ctl("list-remote-macs %s" % self.name).splitlines()
@@ -263,31 +308,31 @@ class Logical_Switch(object):
                 parse_ucast = False
                 continue
 
-            entry = re.split(r'  (.*) -> (.*)', line)
-            if len(entry) != 4:
+            entry = re.split(r'  (.*) -> (.*)/(.*) \[(.*)\]', line)
+            if len(entry) != 6:
                 continue
 
             if parse_ucast:
-                remote_macs[entry[1]] = entry[2]
+                remote_macs[entry[1]] = self.get_tunnel_info(entry)
             else:
                 if entry[1] != "unknown-dst":
                     continue
+                unknown_dsts.add(self.get_tunnel_info(entry))
 
-                unknown_dsts.add(entry[2])
-
-            tunnels.add(entry[2])
+            tunnels[entry[3]]= self.get_tunnel_info(entry)
 
         old_tunnels = set(self.tunnels.keys())
 
-        for tunnel in tunnels.difference(old_tunnels):
-            self.add_tunnel(tunnel)
+        tunnels_keys = set(tunnels.keys())
+        for peer_ip in tunnels_keys.difference(old_tunnels):
+            self.add_tunnel(tunnels[peer_ip])
 
-        for tunnel in old_tunnels.difference(tunnels):
-            self.del_tunnel(tunnel)
+        for peer_ip in old_tunnels.difference(tunnels_keys):
+            self.del_tunnel(peer_ip)
 
         for mac in six.iterkeys(remote_macs):
             if (self.remote_macs.get(mac) != remote_macs[mac]):
-                self.add_remote_mac(mac, remote_macs[mac])
+                self.add_remote_mac(mac, remote_macs[mac]['dest_ip'])
 
         for mac in six.iterkeys(self.remote_macs):
             if mac not in remote_macs:
@@ -683,6 +728,8 @@ def main():
     parser.add_argument("--root-prefix", metavar="DIR",
                         help="Use DIR as alternate root directory"
                         " (for testing).")
+    parser.add_argument("--db", metavar="DATABASE",
+                        help="connect to DATABASE")
     parser.add_argument("--version", action="version",
                         version="%s %s" % (ovs.util.PROGRAM_NAME, VERSION))
 
@@ -698,6 +745,10 @@ def main():
 
     global ps_name
     ps_name = args.ps_name
+
+    global database
+    if args.db:
+        database = "--db=%s" % args.db
 
     ovs.daemon.daemonize()
 
