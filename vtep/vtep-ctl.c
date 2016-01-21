@@ -704,12 +704,10 @@ static void
 add_ploc_to_cache(struct vtep_ctl_context *vtepctl_ctx,
                   struct vteprec_physical_locator *ploc)
 {
-    char *name = xasprintf("%s+%s", ploc->encapsulation_type, 
-                           ploc->dst_ip);
+    char *name = xasprintf("%s+%s", ploc->encapsulation_type, ploc->dst_ip);
     struct vteprec_physical_locator *orig_ploc;
 
-    orig_ploc = find_ploc(vtepctl_ctx, ploc->encapsulation_type, 
-                          ploc->dst_ip);
+    orig_ploc = find_ploc(vtepctl_ctx, ploc->encapsulation_type, ploc->dst_ip);
     if (!orig_ploc) {
         shash_add(&vtepctl_ctx->plocs, name, ploc);
     }
@@ -2020,7 +2018,7 @@ list_macs(struct ctl_context *ctx, bool local)
         if (ploc_cfg->tunnel_key)
             snprintf(&tunnel_key[0],5,"%d",(uint32_t)*ploc_cfg->tunnel_key);
         entry = xasprintf("  %s -> %s/%s [%s]", node->name,
-                          ploc_cfg->encapsulation_type, 
+                          ploc_cfg->encapsulation_type,
                           ploc_cfg->dst_ip,
                           tunnel_key );
         svec_add_nocopy(&ucast_macs, entry);
@@ -2038,7 +2036,7 @@ list_macs(struct ctl_context *ctx, bool local)
         LIST_FOR_EACH (ploc, locators_node, &mcast_mac->locators) {
             tunnel_key[0] = 0;
             if (ploc->ploc_cfg->tunnel_key)
-                snprintf(tunnel_key,5,"%d",(uint32_t)*ploc->ploc_cfg->tunnel_key); 
+                snprintf(tunnel_key,5,"%d",(uint32_t)*ploc->ploc_cfg->tunnel_key);
             entry = xasprintf("  %s -> %s/%s [%s]", node->name,
                               ploc->ploc_cfg->encapsulation_type,
                               ploc->ploc_cfg->dst_ip,

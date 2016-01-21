@@ -52,6 +52,7 @@ bfd_bridge = "vtep_bfd"
 bfd_ref = {}
 database = None
 
+
 def call_prog(prog, args_list):
     cmd = [prog, "-vconsole:off"] + args_list
     output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
@@ -74,7 +75,6 @@ def vtep_ctl(args):
     args_list = shlex.split(args)
     if database is not None:
         args_list = [database] + args_list
-    print("vtep-ctl %s" % args_list)
     return call_prog("vtep-ctl", args_list)
 
 
@@ -82,32 +82,6 @@ def unixctl_exit(conn, unused_argv, unused_aux):
     global exiting
     exiting = True
     conn.reply(None)
-
-
-class Vtep_Query(object):
-    def __init__(self, table,condition,value):
-        self.table = table
-        self.condition = condition
-        self.value = value
-
-    def result_set(self):
-        results = []
-        result = {}
-        query = vtep_ctl("find %s %s=%s" %(
-            self.table,
-            self.condition,
-            self.value) ).splitlines()
-        if ':' in row:
-            key, value = row.split(' :')
-            value = value.strip()
-            if value == '""':
-                result[key.strip()] = None
-            else:
-                result[key.strip()] = value
-        else:
-            results.append(result)
-            result = {}
-        return results
 
 
 class Logical_Switch(object):
@@ -130,7 +104,7 @@ class Logical_Switch(object):
         vlog.info("destroying lswitch %s" % self.name)
 
     def setup_ls(self):
-        column = vtep_ctl("--columns=tunnel_key find logical_switch "
+        column = vtep_ctl("--columns=tunnel_key find Logical_Switch "
                               "name=%s" % self.name)
         tunnel_key = column.partition(":")[2].strip()
         if tunnel_key and isinstance(eval(tunnel_key), types.IntType):
@@ -207,16 +181,22 @@ class Logical_Switch(object):
     # tunnel is a dict { tunnel_type: xx, dest_ip: x.x.x.x, tunnel_key: kk }
     def add_tunnel(self, tunnel):
         global tun_id
-        if tunnel['tunnel_key'] is None:
+        tunnel_key = tunnel['tunnel_key']
+        if not tunnel_key:
             tunnel_key = self.tunnel_key
-        vlog.info("%s adding tunnel type %s  dest_ip = %s key = %s" % (
+        vlog.info("%s{%s} adding tunnel type %s  dest_ip = %s key = %s" % (
                   self.short_name,
+                  self.name,
                   tunnel['tunnel_type'],
                   tunnel['dest_ip'],
-                  tunnel_key )
+                  tunnel_key))
 
-        if tunnel['tunnel_type'] != "vxlan_over_ipv4":
-            vlog.warn("unsupported tunnel format %s" % encap)
+        if 'tunnel_type' not in tunnel.keys():
+            vlog.warn("tunnel format %s unspecified for " % tunnel['dest_ip'])
+            return
+
+        if "vxlan_over_ipv4" != tunnel['tunnel_type']:
+            vlog.warn("unsupported tunnel format %s" % tunnel['tunnel_type'])
             return
 
         tun_id += 1
@@ -225,7 +205,7 @@ class Logical_Switch(object):
         ovs_vsctl("add-port %s %s -- set Interface %s type=vxlan "
                   "options:key=%s options:remote_ip=%s"
                   % (self.short_name, tun_name,
-                     tun_name, tunnel_key,tunnel['dest_ip'] ) )
+                     tun_name, tunnel_key, tunnel['dest_ip']))
 
         for i in range(10):
             port_no = ovs_vsctl("get Interface %s ofport" % tun_name)
@@ -239,7 +219,9 @@ class Logical_Switch(object):
             # Give the system a moment to allocate the port number
             time.sleep(0.5)
 
-        self.tunnels[tunnel['dest_ip']] = (port_no, tun_name, tunnel['dest_ip'])
+        self.tunnels[tunnel['dest_ip']] = (port_no,
+                                           tun_name,
+                                           tunnel['dest_ip'])
 
         add_bfd(tunnel['dest_ip'])
 
@@ -247,17 +229,17 @@ class Logical_Switch(object):
                   "actions=resubmit(,1)"
                   % (self.short_name, port_no))
 
-    def del_tunnel(self, tunnel):
-        vlog.info("removing tunnel %s" % tunnel)
+    def del_tunnel(self, peer_ip):
+        vlog.info("removing tunnel to %s" % peer_ip)
 
-        port_no, tun_name, remote_ip = self.tunnels[tunnel['dest_ip']]
+        port_no, tun_name, remote_ip = self.tunnels[peer_ip]
         ovs_ofctl("del-flows %s table=0,in_port=%s"
                     % (self.short_name, port_no))
         ovs_vsctl("del-port %s %s" % (self.short_name, tun_name))
 
         del_bfd(remote_ip)
 
-        del self.tunnels[tunnel['dest_ip']]
+        del self.tunnels[peer_ip]
 
     def update_local_macs(self):
         flows = ovs_ofctl("dump-flows %s cookie=0x5000/-1,table=1"
@@ -279,7 +261,7 @@ class Logical_Switch(object):
         self.local_macs = macs
 
     def add_remote_mac(self, mac, tunnel_peer):
-        port_no = self.tunnels.get(tunnel, (0, ""))[0]
+        port_no = self.tunnels.get(tunnel_peer, (0, ""))[0]
         if not port_no:
             return
 
@@ -290,7 +272,7 @@ class Logical_Switch(object):
         ovs_ofctl("del-flows %s table=1,dl_dst=%s" % (self.short_name, mac))
 
     def get_tunnel_info(self, entry):
-        values  = {}
+        values = {}
         values['tunnel_type'] = entry[2]
         values['dest_ip'] = entry[3]
         values['tunnel_key'] = entry[4]
@@ -319,7 +301,7 @@ class Logical_Switch(object):
                     continue
                 unknown_dsts.add(self.get_tunnel_info(entry))
 
-            tunnels[entry[3]]= self.get_tunnel_info(entry)
+            tunnels[entry[3]] = self.get_tunnel_info(entry)
 
         old_tunnels = set(self.tunnels.keys())
 
