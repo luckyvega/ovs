@@ -343,18 +343,18 @@ Logical Router commands:\n\
   lr-exists LR                exit 2 if LR does not exist\n\
 \n\
 MAC binding commands:\n\
-  add-ucast-local LS MAC [ENCAP] IP   add ucast local entry in LS\n\
-  del-ucast-local LS MAC              del ucast local entry from LS\n\
-  add-mcast-local LS MAC [ENCAP] IP   add mcast local entry in LS\n\
-  del-mcast-local LS MAC [ENCAP] IP   del mcast local entry from LS\n\
-  clear-local-macs LS                 clear local mac entries\n\
-  list-local-macs LS                  list local mac entries\n\
+  add-ucast-local LS MAC [ENCAP] IP [tunnel_key]   add ucast local entry in LS\n\
+  del-ucast-local LS MAC                           del ucast local entry from LS\n\
+  add-mcast-local LS MAC [ENCAP] IP [tunnel_key]   add mcast local entry in LS\n\
+  del-mcast-local LS MAC [ENCAP] IP                del mcast local entry from LS\n\
+  clear-local-macs LS                              clear local mac entries\n\
+  list-local-macs LS                               list local mac entries\n\
   add-ucast-remote LS MAC [ENCAP] IP [tunnel_key]  add ucast remote entry in LS\n\
-  del-ucast-remote LS MAC             del ucast remote entry from LS\n\
-  add-mcast-remote LS MAC [ENCAP] IP [tunnel_key] add mcast remote entry in LS\n\
-  del-mcast-remote LS MAC [ENCAP] IP  del mcast remote entry from LS\n\
-  clear-remote-macs LS                clear remote mac entries\n\
-  list-remote-macs LS                 list remote mac entries\n\
+  del-ucast-remote LS MAC                          del ucast remote entry from LS\n\
+  add-mcast-remote LS MAC [ENCAP] IP [tunnel_key]  add mcast remote entry in LS\n\
+  del-mcast-remote LS MAC [ENCAP] IP               del mcast remote entry from LS\n\
+  clear-remote-macs LS                             clear remote mac entries\n\
+  list-remote-macs LS                              list remote mac entries\n\
 \n\
 %s\
 \n\
@@ -449,6 +449,11 @@ struct vtep_ctl_context {
                              * struct vtep_ctl_lrouter. */
 };
 
+static bool is_valid_ip(const char* address)
+{
+  struct sockaddr_in sa;
+  return inet_pton(AF_INET, address, &(sa.sin_addr));
+}
 /* Casts 'base' into 'struct vtep_ctl_context'. */
 static struct vtep_ctl_context *
 vtep_ctl_context_cast(struct ctl_context *base)
@@ -1629,7 +1634,14 @@ add_ucast_entry(struct ctl_context *ctx, bool local)
     mac = ctx->argv[2];
     switch (ctx->argc)
     {
+        case 6:
+            tunnel_key = ctx->argv[5];
         case 5:
+            if (is_valid_ip(ctx->argv[4])){
+                dst_ip = ctx->argv[4];
+                encap = ctx->argv[3];
+                break;
+            }
             tunnel_key = ctx->argv[4];
         case 4:
             dst_ip = ctx->argv[3];
@@ -1897,16 +1909,22 @@ add_del_mcast_entry(struct ctl_context *ctx, bool add, bool local)
 
     switch (ctx->argc)
     {
+        case 6:
+            tunnel_key = ctx->argv[5];
         case 5:
+            if (is_valid_ip(ctx->argv[4])){
+                dst_ip = ctx->argv[4];
+                encap = ctx->argv[3];
+                break;
+            }
             tunnel_key = ctx->argv[4];
         case 4:
-            encap = "vxlan_over_ipv4";
             dst_ip = ctx->argv[3];
+            encap = "vxlan_over_ipv4";
             break;
         default:
             break;
     }
-
     if (add) {
         add_mcast_entry(ctx, ls, mac, encap, dst_ip, tunnel_key, local);
     } else {
@@ -2493,11 +2511,11 @@ static const struct ctl_command_syntax vtep_commands[] = {
     {"lr-exists", 1, 1, NULL, pre_get_info, cmd_lr_exists, NULL, "", RO},
 
     /* MAC binding commands. */
-    {"add-ucast-local", 3, 4, NULL, pre_get_info, cmd_add_ucast_local, NULL,
+    {"add-ucast-local", 3, 5, NULL, pre_get_info, cmd_add_ucast_local, NULL,
      "", RW},
     {"del-ucast-local", 2, 2, NULL, pre_get_info, cmd_del_ucast_local, NULL,
      "", RW},
-    {"add-mcast-local", 3, 4, NULL, pre_get_info, cmd_add_mcast_local, NULL,
+    {"add-mcast-local", 3, 5, NULL, pre_get_info, cmd_add_mcast_local, NULL,
      "", RW},
     {"del-mcast-local", 3, 4, NULL, pre_get_info, cmd_del_mcast_local, NULL,
      "", RW},

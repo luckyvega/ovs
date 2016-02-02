@@ -225,10 +225,12 @@ These commands examine and manipulate local MAC bindings for the logical
 switch.  The local maps are written by the VTEP to refer to MACs it has
 learned on its physical ports.
 .
-.IP "\fBadd\-ucast\-local \fIlswitch mac\fR [\fIencap\fR] \fIip\fR"
+.IP "\fBadd\-ucast\-local \fIlswitch mac\fR [\fIencap\fR] \fIip\fR  [\tunnel_key\fR]"
 Map the unicast Ethernet address \fImac\fR to the physical location
-\fIip\fR using encapsulation \fIencap\fR on \fIlswitch\fR.  If
-\fIencap\fR is not specified, the default is "vxlan_over_ipv4".  The
+\fIip\fR using encapsulation \fIencap\fR on \fIlswitch\fR. When a
+tunnel_key is specified, it will be used as the tag for the encapsulation;
+otherwise, the tag that is defined in thelogical switch will be used.
+If \fIencap\fR is not specified, the default is "vxlan_over_ipv4".  The
 local mappings are used by the VTEP to refer to MACs learned on its
 physical ports.
 .
@@ -237,12 +239,14 @@ Remove the local unicast Ethernet address \fImac\fR map from
 \fIlswitch\fR.  The local mappings are used by the VTEP to refer to MACs
 learned on its physical ports.
 .
-.IP "\fBadd\-mcast\-local \fIlswitch mac\fR [\fIencap\fR] \fIip\fR"
+.IP "\fBadd\-mcast\-local \fIlswitch mac\fR [\fIencap\fR] \fIip\fR [\tunnel_key\fR]"
 Add physical location \fIip\fR using encapsulation \fIencap\fR to the
 local mac binding table for multicast Ethernet address \fImac\fR on
-\fIlswitch\fR.  If \fIencap\fR is not specified, the default is
-"vxlan_over_ipv4".  The local mappings are used by the VTEP to refer to
-MACs learned on its physical ports.
+\fIlswitch\fR. When a tunnel_key is specified, it will be used as the tag for
+the encapsulation; otherwise, the tag that is defined in the logical switch
+will be used.  If \fIencap\fR is not specified, the default is
+"vxlan_over_ipv4".  The local mappings are used by the VTEP to refer to MACs
+learned on its physical ports.
 .
 .IP "\fBdel\-mcast\-local \fIlswitch mac\fR [\fIencap\fR] \fIip\fR"
 Remove physical location \fIip\fR using encapsulation \fIencap\fR from
@@ -262,22 +266,25 @@ These commands examine and manipulate local and remote MAC bindings for
 the logical switch.  The remote maps are written by the network
 virtualization controller to refer to MACs that it has learned.
 .
-.IP "\fBadd\-ucast\-remote \fIlswitch mac\fR [\fIencap\fR] \fIip\fR"
+.IP "\fBadd\-ucast\-remote \fIlswitch mac\fR [\fIencap\fR] \fIip\fR  [\tunnel_key\fR]"
 Map the unicast Ethernet address \fImac\fR to the physical location
-\fIip\fR using encapsulation \fIencap\fR on \fIlswitch\fR.  If
-\fIencap\fR is not specified, the default is "vxlan_over_ipv4".  The
-remote mappings are used by the network virtualization platform to refer
-to MACs that it has learned.
+\fIip\fR using encapsulation \fIencap\fR on \fIlswitch\fR. When a tunnel_key is
+specified, it will be used as the tag for the encapsulation; otherwise, the tag
+that is defined in the logical switch will be used. If \fIencap\fR is not specified,
+the default is "vxlan_over_ipv4". The remote mappings are used by the network
+virtualization platform to refer to MACs that it has learned.
 .
 .IP "\fBdel\-ucast\-remote \fIlswitch mac\fR"
 Remove the remote unicast Ethernet address \fImac\fR map from
 \fIlswitch\fR.  The remote mappings are used by the network
 virtualization platform to refer to MACs that it has learned.
 .
-.IP "\fBadd\-mcast\-remote \fIlswitch mac\fR [\fIencap\fR] \fIip\fR"
+.IP "\fBadd\-mcast\-remote \fIlswitch mac\fR [\fIencap\fR] \fIip\fR  [\tunnel_key\fR]"
 Add physical location \fIip\fR using encapsulation \fIencap\fR to the
 remote mac binding table for multicast Ethernet address \fImac\fR on
-\fIlswitch\fR.  If \fIencap\fR is not specified, the default is
+\fIlswitch\fR.  When a tunnel_key is specified, it will be used as the
+tag for the encapsulation; otherwise, the tag that is defined in the
+logical switch will be used. If \fIencap\fR is not specified, the default is
 "vxlan_over_ipv4".  The remote mappings are used by the network
 virtualization platform to refer to MACs that it has learned.
 .

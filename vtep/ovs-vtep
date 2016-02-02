@@ -51,6 +51,7 @@ tun_id = 0
 bfd_bridge = "vtep_bfd"
 bfd_ref = {}
 database = None
+auto_flood = False
 
 
 def call_prog(prog, args_list):
@@ -92,7 +93,7 @@ class Logical_Switch(object):
         self.short_name = "vtep_ls" + str(ls_count)
         vlog.info("creating lswitch %s (%s)" % (self.name, self.short_name))
         self.ports = {}
-        # key = dest_ip, value = (ovs_port_no, tun_name, tunnel['dest_ip']))
+        # tunnel = { key = dest_ip, value = (ovs_port_no, tun_name, tunnel['dest_ip'])) }
         self.tunnels = {}
         self.local_macs = set()
         self.remote_macs = {}
@@ -130,41 +131,84 @@ class Logical_Switch(object):
         vtep_ctl("add-mcast-local %s unknown-dst %s" % (self.name, Tunnel_Ip))
 
         ovs_ofctl("del-flows %s" % self.short_name)
-        ovs_ofctl("add-flow %s priority=0,action=drop" % self.short_name)
+        ovs_ofctl("add-flow %s table=0,priority=0,action=drop" %
+                self.short_name)
 
     def cleanup_ls(self):
         for port_no, tun_name, remote_ip in six.itervalues(self.tunnels):
             del_bfd(remote_ip)
 
+    def tunnel_ports(self,tunnel_list):
+        outbound_ports = list()
+        inbound_ports = list()
+        phy_ports = self.ports.values()
+        vlog.info("phy_ports = %s" % phy_ports)
+        vlog.info("tunnel_list = %s" % tunnel_list)
+        for tunnel in tunnel_list:
+            vlog.info("tunnel = %s port = %s" % (tunnel,
+                self.tunnels[tunnel][0]))
+            if self.tunnels[tunnel][3] != self.tunnel_key:
+                outbound_ports.append(self.tunnels[tunnel][0])
+                continue
+            inbound_ports.append(self.tunnels[tunnel][0])
+        return outbound_ports,inbound_ports
+
     def update_flood(self):
-        flood_ports = list(self.ports.values())
+        outbound_ports,inbound_ports = None,None
+        global auto_flood
+        if auto_flood:
+            outbound_ports,inbound_ports = self.tunnel_ports(
+                    self.tunnels.keys())
+        else:
+            outbound_ports,inbound_ports = self.tunnel_ports(self.unknown_dsts)
 
-        # Traffic flowing from one 'unknown-dst' should not be flooded to
-        # port belonging to another 'unknown-dst'.
-        tunnel_ports = list()
-        for tunnel in self.unknown_dsts:
-            port_no = self.tunnels[tunnel][0]
-            tunnel_ports.append(port_no)
-            ovs_ofctl("add-flow %s table=1,priority=1,in_port=%s,action=%s"
-                        % (self.short_name, port_no, ",".join(flood_ports)))
+        vlog.info("outbound  ports = %s, inblound ports = %s" %(outbound_ports,
+                   inbound_ports))
+        # Traffic coming from physical port should be flooded to all inbound,
+        # outbound  and other physical ports that belong to that
+        # VTEP logical switch.
+        flood_ports = inbound_ports + outbound_ports
+        phy_ports = self.ports.values()
+        if flood_ports or len(phy_ports) > 1:
+            for port_no in phy_ports:
+                out_ports = list()
+                out_ports = phy_ports
+                out_ports.remove(port_no)
+                out_ports = flood_ports + out_ports
+                ovs_ofctl("add-flow %s table=1,in_port=%s,priority=1,action=%s"
+                          % (self.short_name,port_no,
+                          ",".join(out_ports)))
+                vlog.info("%s added flood from %s to %s" % (self.short_name,
+                          port_no,out_ports))
+        # Traffic flowing from inbound port should be flooded
+        # to the outbound ports and physical ports
+        flood_ports = self.ports.values() + outbound_ports
+        if flood_ports:
+            for port_no in inbound_ports:
+                ovs_ofctl("add-flow %s table=1,priority=9,in_port=%s,action=%s"
+                          % (self.short_name, port_no,
+                          ",".join(flood_ports)))
+                vlog.info("%s added flood from %s to %s" %
+                          (self.short_name, port_no,flood_ports))
 
-        # Traffic coming from a VTEP physical port should only be flooded to
-        # one 'unknown-dst' and to all other physical ports that belong to that
-        # VTEP device and this logical switch.
-        for port_no in flood_ports:
-            out_ports = list()
-            out_ports = flood_ports
-            out_ports.remove(port_no)
-            out_ports += tunnel_ports
-            ovs_ofctl("add-flow %s table=1,priority=1,in_port=%s,action=%s"
-                        % (self.short_name, port_no, ",".join(out_ports)))
+        # Traffic flowing from outbound port should be flooded
+        # to inbound ports and physical ports
+        flood_ports = self.ports.values() + inbound_ports
+        if flood_ports:
+            for port_no in outbound_ports:
+                ovs_ofctl("add-flow %s table=1,priority=9,in_port=%s,action=%s"
+                          % (self.short_name, port_no,
+                          ",".join(flood_ports)))
+                vlog.info("%s added flood from %s to %s" % (self.short_name,
+                          port_no,flood_ports))
+
 
     def add_lbinding(self, lbinding):
         vlog.info("adding %s binding to %s" % (lbinding, self.name))
         port_no = ovs_vsctl("get Interface %s ofport" % lbinding)
         self.ports[lbinding] = port_no
-        ovs_ofctl("add-flow %s in_port=%s,action=learn(table=1,"
-                  "priority=1000,idle_timeout=15,cookie=0x5000,"
+        ovs_ofctl("add-flow %s table=0,in_port=%s,priority=10,action=learn(table=1,"
+                  "priority=900,idle_timeout=15,cookie=0x5000,"
                   "NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],"
                   "output:NXM_OF_IN_PORT[]),resubmit(,1)"
                   % (self.short_name, port_no))
@@ -207,39 +251,51 @@ class Logical_Switch(object):
                   % (self.short_name, tun_name,
                      tun_name, tunnel_key, tunnel['dest_ip']))
 
-        for i in range(10):
-            port_no = ovs_vsctl("get Interface %s ofport" % tun_name)
-            if port_no != "-1":
-                break
-            elif i == 9:
+        port_no = ovs_vsctl("get Interface %s ofport" % tun_name)
+        if port_no == "-1":
                 vlog.warn("couldn't create tunnel %s" % tunnel)
                 ovs_vsctl("del-port %s %s" % (self.short_name, tun_name))
                 return
 
-            # Give the system a moment to allocate the port number
-            time.sleep(0.5)
-
+        # Give the system a moment to allocate the port number
+        time.sleep(0.5)
+        vlog.info("tunnel => %s is on port %s" % (tunnel['dest_ip'],port_no))
         self.tunnels[tunnel['dest_ip']] = (port_no,
                                            tun_name,
-                                           tunnel['dest_ip'])
+                                           tunnel['dest_ip'],
+                                           tunnel_key)
 
         add_bfd(tunnel['dest_ip'])
-
-        ovs_ofctl("add-flow %s table=0,priority=1000,in_port=%s,"
+        if tunnel_key != self.tunnel_key:
+            ovs_ofctl("add-flow %s table=0,in_port=%s,priority=10,"
+                      "action=learn(table=1,"
+                      "priority=700,idle_timeout=15,cookie=0x5000,"
+                      "NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],"
+                      "output:NXM_OF_IN_PORT[]),resubmit(,1)"
+                      % (self.short_name, port_no))
+            vlog.info("added mac learn rule for tunnel[%s], at port %s" %
+                      (tunnel['dest_ip'],port_no))
+        ovs_ofctl("add-flow %s table=0,priority=100,in_port=%s,"
                   "actions=resubmit(,1)"
                   % (self.short_name, port_no))
+        vlog.info("add flow resubmit to table 1 ,tunnel => %s is on port %s"
+                % (tunnel['dest_ip'],port_no))
 
-    def del_tunnel(self, peer_ip):
-        vlog.info("removing tunnel to %s" % peer_ip)
-
-        port_no, tun_name, remote_ip = self.tunnels[peer_ip]
+    def del_tunnel(self, tunnel):
+        vlog.info("removing tunnel %s" % tunnel)
+        if tunnel not in self.tunnels.keys():
+            vlog.info("tunnel %s hs not been created yet")
+            return
+        port_no, tun_name, remote_ip, tunnel_key = self.tunnels[tunnel]
         ovs_ofctl("del-flows %s table=0,in_port=%s"
+                    % (self.short_name, port_no))
+        ovs_ofctl("del-flows %s table=1,in_port=%s"
                     % (self.short_name, port_no))
         ovs_vsctl("del-port %s %s" % (self.short_name, tun_name))
 
         del_bfd(remote_ip)
 
-        del self.tunnels[peer_ip]
+        del self.tunnels[tunnel]
 
     def update_local_macs(self):
         flows = ovs_ofctl("dump-flows %s cookie=0x5000/-1,table=1"
@@ -260,8 +316,8 @@ class Logical_Switch(object):
 
         self.local_macs = macs
 
-    def add_remote_mac(self, mac, tunnel_peer):
-        port_no = self.tunnels.get(tunnel_peer, (0, ""))[0]
+    def add_remote_mac(self, mac, tunnel):
+        port_no = self.tunnels.get(tunnel, (0, ""))[0]
         if not port_no:
             return
 
@@ -299,18 +355,24 @@ class Logical_Switch(object):
             else:
                 if entry[1] != "unknown-dst":
                     continue
-                unknown_dsts.add(self.get_tunnel_info(entry))
+                unknown_dsts.add(entry[3])
 
             tunnels[entry[3]] = self.get_tunnel_info(entry)
 
         old_tunnels = set(self.tunnels.keys())
-
+        update_flood = False
         tunnels_keys = set(tunnels.keys())
         for peer_ip in tunnels_keys.difference(old_tunnels):
             self.add_tunnel(tunnels[peer_ip])
+            update_flood |= True
 
         for peer_ip in old_tunnels.difference(tunnels_keys):
             self.del_tunnel(peer_ip)
+            update_flood |= True
+
+        global auto_flood
+        if auto_flood and update_flood:
+            self.update_flood()
 
         for mac in six.iterkeys(remote_macs):
             if (self.remote_macs.get(mac) != remote_macs[mac]):
@@ -323,6 +385,7 @@ class Logical_Switch(object):
         self.remote_macs = remote_macs
 
         if (self.unknown_dsts != unknown_dsts):
+            vlog.info("unknown dst are %s" % self.unknown_dsts)
             self.unknown_dsts = unknown_dsts
             self.update_flood()
 
@@ -590,6 +653,14 @@ def del_binding(binding, ls):
 
 
 def handle_physical():
+    switch_list = vtep_ctl("list-ls").splitlines()
+    for ls_name in switch_list:
+        if ls_name not in Lswitches.keys():
+            Lswitches[ls_name] = Logical_Switch(ls_name)
+    removed_switches = list()
+    for ls_name in Lswitches.keys():
+        if ls_name not in switch_list:
+            removed_switches.append(ls_name)
     # Gather physical ports except the patch ports we created
     ovs_ports = ovs_vsctl("list-ports %s" % ps_name).split()
     ovs_port_set = set([port for port in ovs_ports if port[-2:] != "-p"])
@@ -608,11 +679,9 @@ def handle_physical():
     for pp_name in vtep_pp_set:
         binding_set = set(vtep_ctl("list-bindings %s %s"
                                    % (ps_name, pp_name)).splitlines())
-
+        switch_list = vtep_ctl("list-ls").splitlines()
         for b in binding_set:
             vlan, ls_name = b.split()
-            if ls_name not in Lswitches:
-                Lswitches[ls_name] = Logical_Switch(ls_name)
 
             binding = "%s-%s" % (vlan, pp_name)
             ls = Lswitches[ls_name]
@@ -633,7 +702,9 @@ def handle_physical():
 
         del_binding(binding, ls)
 
-        if not len(ls.ports):
+    for ls_name in removed_switches:
+        ls = Lswitches[ls_name]
+        if not len(ls.ports) and not ls.tunnels:
             ls.cleanup_ls()
             ovs_vsctl("del-br %s" % Lswitches[ls_name].short_name)
             vtep_ctl("clear-local-macs %s" % Lswitches[ls_name].name)
@@ -714,7 +785,8 @@ def main():
                         help="connect to DATABASE")
     parser.add_argument("--version", action="version",
                         version="%s %s" % (ovs.util.PROGRAM_NAME, VERSION))
-
+    parser.add_argument('--auto_flood', action='store_true',
+                        help="dont use unknown-dst for flooding")
     ovs.vlog.add_args(parser)
     ovs.daemon.add_args(parser)
     args = parser.parse_args()
@@ -731,6 +803,9 @@ def main():
     global database
     if args.db:
         database = "--db=%s" % args.db
+    global auto_flood
+    if args.auto_flood:
+        auto_flood = args.auto_flood
 
     ovs.daemon.daemonize()
 
