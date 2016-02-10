@@ -136,21 +136,23 @@ class Logical_Switch(object):
 
         # Traffic flowing from one 'unknown-dst' should not be flooded to
         # port belonging to another 'unknown-dst'.
+        tunnel_ports = list()
         for tunnel in self.unknown_dsts:
             port_no = self.tunnels[tunnel][0]
+            tunnel_ports.append(port_no)
             ovs_ofctl("add-flow %s table=1,priority=1,in_port=%s,action=%s"
                         % (self.short_name, port_no, ",".join(flood_ports)))
 
         # Traffic coming from a VTEP physical port should only be flooded to
         # one 'unknown-dst' and to all other physical ports that belong to that
         # VTEP device and this logical switch.
-        for tunnel in self.unknown_dsts:
-            port_no = self.tunnels[tunnel][0]
-            flood_ports.append(port_no)
-            break
-
-        ovs_ofctl("add-flow %s table=1,priority=0,action=%s"
-                  % (self.short_name, ",".join(flood_ports)))
+        for port_no in flood_ports:
+            out_ports = list()
+            out_ports = flood_ports
+            out_ports.remove(port_no)
+            out_ports += tunnel_ports
+            ovs_ofctl("add-flow %s table=1,priority=1,in_port=%s,action=%s"
+                        % (self.short_name, port_no, ",".join(out_ports)))
 
     def add_lbinding(self, lbinding):
         vlog.info("adding %s binding to %s" % (lbinding, self.name))
