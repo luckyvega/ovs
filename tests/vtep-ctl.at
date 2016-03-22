@@ -437,8 +437,8 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-local
 
@@ -464,7 +464,7 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-local
 
@@ -484,8 +484,8 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-local
 
@@ -495,7 +495,7 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-local
 
@@ -515,8 +515,8 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-remote
 
@@ -542,7 +542,7 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-remote
 
@@ -562,8 +562,8 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-remote
 
@@ -573,7 +573,7 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-remote
 
@@ -595,16 +595,16 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  00:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-local
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  02:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  02:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  02:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  02:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 mcast-mac-remote
 
@@ -627,9 +627,9 @@ AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
 
 mcast-mac-local
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
@@ -657,10 +657,10 @@ AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
 
 mcast-mac-local
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL(
@@ -670,9 +670,9 @@ AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
 
 mcast-mac-local
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 VTEP_CTL_CLEANUP
@@ -693,9 +693,9 @@ AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
 
 mcast-mac-remote
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
@@ -723,10 +723,10 @@ AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
 
 mcast-mac-remote
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL(
@@ -736,9 +736,9 @@ AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
 
 mcast-mac-remote
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.13 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 VTEP_CTL_CLEANUP
@@ -762,18 +762,18 @@ AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
 
 mcast-mac-local
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
 
 mcast-mac-remote
-  03:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  03:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  03:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  03:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  03:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  03:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 VTEP_CTL_CLEANUP
@@ -797,22 +797,22 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
 
 mcast-mac-local
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
 
 mcast-mac-remote
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL(
@@ -825,12 +825,12 @@ mcast-mac-local
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
 
 mcast-mac-remote
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 VTEP_CTL_CLEANUP
@@ -854,34 +854,34 @@ AT_CHECK([RUN_VTEP_CTL(
 ], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
 
 mcast-mac-local
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],
    [ucast-mac-remote
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
 
 mcast-mac-remote
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL(
    [clear-remote-macs ls1])], [0], [], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-local-macs ls1])], [0],
    [ucast-mac-local
-  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
+  00:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
 
 mcast-mac-local
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10
-  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12
-  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.10 [[]]
+  01:11:22:33:44:55 -> vxlan_over_ipv4/10.0.0.12 [[]]
+  01:11:22:33:44:66 -> vxlan_over_ipv4/10.0.0.11 [[]]
 
 ], [], [VTEP_CTL_CLEANUP])
 AT_CHECK([RUN_VTEP_CTL([list-remote-macs ls1])], [0],

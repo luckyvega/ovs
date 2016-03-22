@@ -1173,7 +1173,15 @@
         16,777,215.
       </p>
     </column>
-
+    <column name="tunnel_key">
+      <p>
+        For <code>vxlan_over_ipv4</code> encapsulation to support vni mapping, the vni tage of the mapped
+        VXLAN tunnel.
+      </p>
+     <p>
+       Futer implementation will support other then VXLAN tunnels.
+     </p>
+    </column>
   </table>
   <table name="ACL_entry">
     <p>

@@ -175,11 +175,25 @@ class Logical_Switch(object):
         del self.ports[lbinding]
         self.update_flood()
 
+    def tunnel_dict(self,entry):
+        return {
+	    'tunnel_type': entry[2],
+            'dest_ip': entry[3],
+	    'tunnel_key': entry[4],
+        }
+
     def add_tunnel(self, tunnel):
         global tun_id
-        vlog.info("adding tunnel %s" % tunnel)
-        encap, ip = tunnel.split("/")
+        use_self_key = False
+        tunnel_key = tunnel['tunnel_key']
+        if not tunnel_key:
+            use_self_key = True
+            tunnel_key = self.tunnel_key
+        vlog.info("adding tunnel %s key %s" % (tunnel['dest_ip'],
+                   tunnel_key))
 
+	encap = tunnel['tunnel_type']
+	ip = tunnel['dest_ip']
         if encap != "vxlan_over_ipv4":
             vlog.warn("unsupported tunnel format %s" % encap)
             return
@@ -189,7 +203,7 @@ class Logical_Switch(object):
 
         ovs_vsctl("add-port %s %s -- set Interface %s type=vxlan "
                   "options:key=%s options:remote_ip=%s"
-                  % (self.short_name, tun_name, tun_name, self.tunnel_key, ip))
+                  % (self.short_name, tun_name, tun_name, tunnel_key, ip))
 
         for i in range(10):
             port_no = ovs_vsctl("get Interface %s ofport" % tun_name)
@@ -203,10 +217,13 @@ class Logical_Switch(object):
             # Give the system a moment to allocate the port number
             time.sleep(0.5)
 
-        self.tunnels[tunnel] = (port_no, tun_name, ip)
+        self.tunnels[ip] = (port_no,
+                                           tun_name,
+                                           ip,
+                                           tunnel['tunnel_key'])
 
         add_bfd(ip)
-
+	
         ovs_ofctl("add-flow %s table=0,priority=1000,in_port=%s,"
                   "actions=resubmit(,1)"
                   % (self.short_name, port_no))
@@ -256,7 +273,7 @@ class Logical_Switch(object):
     def update_remote_macs(self):
         remote_macs = {}
         unknown_dsts = set()
-        tunnels = set()
+        tunnels = {}
         parse_ucast = True
 
         mac_list = vtep_ctl("list-remote-macs %s" % self.name).splitlines()
@@ -264,32 +281,31 @@ class Logical_Switch(object):
             if (line.find("mcast-mac-remote") != -1):
                 parse_ucast = False
                 continue
-
-            entry = re.split(r'  (.*) -> (.*)', line)
-            if len(entry) != 4:
+            entry = re.split(r'  (.*) -> (.*)/(.*) \[(.*)\]', line)
+            if len(entry) != 6:
                 continue
 
             if parse_ucast:
-                remote_macs[entry[1]] = entry[2]
+                remote_macs[entry[1]] = self.tunnel_dict(entry)
             else:
                 if entry[1] != "unknown-dst":
                     continue
 
-                unknown_dsts.add(entry[2])
+                unknown_dsts.add(entry[3])
 
-            tunnels.add(entry[2])
+            tunnels[entry[3]]= self.tunnel_dict(entry)
 
         old_tunnels = set(self.tunnels.keys())
+        tunnels_keys = set(tunnels.keys())
+        for tunnel in tunnels_keys.difference(old_tunnels):
+            self.add_tunnel(tunnels[tunnel])
 
-        for tunnel in tunnels.difference(old_tunnels):
-            self.add_tunnel(tunnel)
-
-        for tunnel in old_tunnels.difference(tunnels):
+        for tunnel in old_tunnels.difference(tunnels_keys):
             self.del_tunnel(tunnel)
 
         for mac in six.iterkeys(remote_macs):
             if (self.remote_macs.get(mac) != remote_macs[mac]):
-                self.add_remote_mac(mac, remote_macs[mac])
+                self.add_remote_mac(mac, remote_macs[mac]['dest_ip'])
 
         for mac in six.iterkeys(self.remote_macs):
             if mac not in remote_macs:
