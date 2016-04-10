@@ -43,7 +43,7 @@ exiting = False
 
 ps_name = ""
 ps_type = ""
-Tunnel_Ip = ""
+Tunnel_Ip = list()
 Lswitches = {}
 Bindings = {}
 ls_count = 0
@@ -724,11 +724,11 @@ def setup():
 
     tunnel_ips = vtep_ctl("get physical_switch %s tunnel_ips"
                           % ps_name).strip('[]"').split(", ")
-    if len(tunnel_ips) != 1 or not tunnel_ips[0]:
-        ovs.util.ovs_fatal(0, "exactly one 'tunnel_ips' should be set", vlog)
+    if  not tunnel_ips[0]:
+        ovs.util.ovs_fatal(0, "at least one 'tunnel_ips' should be set", vlog)
 
     global Tunnel_Ip
-    Tunnel_Ip = tunnel_ips[0]
+    Tunnel_Ip = tunnel_ips
 
     ovs_ofctl("del-flows %s" % ps_name)
 
