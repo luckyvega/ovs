@@ -17,6 +17,7 @@
 #     - Doesn't support multicast other than "unknown-dst"
 
 import argparse
+from pyroute2 import IPDB
 import re
 import shlex
 import subprocess
@@ -43,7 +44,8 @@ exiting = False
 
 ps_name = ""
 ps_type = ""
-Tunnel_Ip = list()
+Tunnel_Ips = list()
+#Tunnel_Ip = list()
 Lswitches = {}
 Bindings = {}
 ls_count = 0
@@ -128,7 +130,9 @@ class Logical_Switch(object):
                   % (self.short_name, self.name))
 
         vtep_ctl("clear-local-macs %s" % self.name)
-        vtep_ctl("add-mcast-local %s unknown-dst %s" % (self.name, Tunnel_Ip))
+        for tunnel_ip in Tunnel_Ips:
+            vtep_ctl("add-mcast-local %s unknown-dst %s" % (self.name,
+                     tunnel_ip))
 
         ovs_ofctl("del-flows %s" % self.short_name)
         ovs_ofctl("add-flow %s table=0,priority=0,action=drop" %
@@ -308,8 +312,9 @@ class Logical_Switch(object):
 
         for mac in macs.difference(self.local_macs):
             vlog.info("adding local ucast %s to %s" % (mac, self.name))
-            vtep_ctl("add-ucast-local %s %s %s" % (self.name, mac, Tunnel_Ip))
-
+            vtep_ctl("add-ucast-local %s %s %s" % (self.name, mac,
+                                                   Tunnel_Ips[0]))
+        #TODO fix parsing to reflect correct tunnel ip
         for mac in self.local_macs.difference(macs):
             vlog.info("removing local ucast %s from %s" % (mac, self.name))
             vtep_ctl("del-ucast-local %s %s" % (self.name, mac))
@@ -424,10 +429,21 @@ class Logical_Switch(object):
         self.update_stats()
 
 
+def get_pref_src(remote_ip):
+    "I the general case where there ar mulple ip's,get 
+     the source ip according to the destination"
+    ip = IPDB()
+    rt = ip.routes[{'dst':remote_ip}]
+    src = rt['prefsrc']
+    vlog.info('source ip for %s is %s' %(remote_ip, src))
+    return src
+
+
 def get_vtep_tunnel(remote_ip):
     # Get the physical_locator record for the local tunnel end point.
+    local_ip = get_pref_src(remote_ip)
     column = vtep_ctl("--columns=_uuid find physical_locator "
-                      "dst_ip=%s" % Tunnel_Ip)
+                      "dst_ip=%s" % local_ip)
     local = column.partition(":")[2].strip()
     if not local:
         return (None, None, None)
@@ -727,8 +743,8 @@ def setup():
     if  not tunnel_ips[0]:
         ovs.util.ovs_fatal(0, "at least one 'tunnel_ips' should be set", vlog)
 
-    global Tunnel_Ip
-    Tunnel_Ip = tunnel_ips
+    global Tunnel_Ips
+    Tunnel_Ips = tunnel_ips
 
     ovs_ofctl("del-flows %s" % ps_name)
 
