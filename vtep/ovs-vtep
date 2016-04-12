@@ -448,6 +448,7 @@ def get_pref_src(remote_ip):
     rt = ip.routes[{'dst':remote_ip}]
     src = rt['prefsrc']
     vlog.info('source ip for %s is %s' %(remote_ip, src))
+    ip.release()    
     return src
 
 
