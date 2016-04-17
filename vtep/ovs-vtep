@@ -279,6 +279,11 @@ class Logical_Switch(object):
                   % (self.short_name, port_no))
         vlog.info("added mac learn rule for tunnel[%s], at port %s"
                   % (tunnel['dest_ip'],port_no))
+        ovs_ofctl("add-flow %s table=0,priority=10,in_port=%s,"
+                  "actions=resubmit(,1)"
+                  % (self.short_name, port_no))
+        vlog.info("add flow resubmit to table 1 ,tunnel => %s is on port %s"
+                % (tunnel['dest_ip'],port_no))
 
         #if tunnel_key != self.tunnel_key:
         #    ovs_ofctl("add-flow %s table=0,in_port=%s,priority=100,"
