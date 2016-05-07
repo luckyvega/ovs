@@ -54,7 +54,8 @@ bfd_bridge = "vtep_bfd"
 bfd_ref = {}
 database = None
 auto_flood = False
-
+df_fragmnet = False
+arp_responder = False
 
 def call_prog(prog, args_list):
     cmd = [prog, "-vconsole:off"] + args_list
@@ -152,7 +153,7 @@ class Logical_Switch(object):
         for tunnel in tunnel_list:
             vlog.info("tunnel = %s port = %s" % (tunnel,
                 self.tunnels[tunnel][0]))
-            if self.tunnels[tunnel][3] != self.tunnel_key:
+            if self.tunnels[tunnel][3]:
                 outbound_ports.append(self.tunnels[tunnel][0])
                 continue
             inbound_ports.append(self.tunnels[tunnel][0])
@@ -165,6 +166,7 @@ class Logical_Switch(object):
             outbound_ports,inbound_ports = self.tunnel_ports(
                     self.tunnels.keys())
         else:
+            # consider only explict flood ports
             outbound_ports,inbound_ports = self.tunnel_ports(self.unknown_dsts)
 
         vlog.info("outbound  ports = %s, inblound ports = %s" %(outbound_ports,
@@ -231,9 +233,12 @@ class Logical_Switch(object):
     def add_tunnel(self, tunnel):
         global tun_id
         tunnel_key = tunnel['tunnel_key']
+        local = False
         if not tunnel_key:
             tunnel_key = self.tunnel_key
-        vlog.info("%s{%s} adding tunnel type %s  dest_ip = %s key = %s" % (
+            local = True
+        vlog.info("%s{%s} adding %s tunnel type %s  dest_ip = %s key = %s" % (
+                  'local' if local else 'outer'
                   self.short_name,
                   self.name,
                   tunnel['tunnel_type'],
@@ -251,10 +256,12 @@ class Logical_Switch(object):
         tun_id += 1
         tun_name = "vx" + str(tun_id)
 
+        global df_fragment
         ovs_vsctl("add-port %s %s -- set Interface %s type=vxlan "
-                  "options:key=%s options:remote_ip=%s"
+                "options:key=%s options:remote_ip=%s options:df_default=%s"
                   % (self.short_name, tun_name,
-                     tun_name, tunnel_key, tunnel['dest_ip']))
+                     tun_name, tunnel_key, tunnel['dest_ip'],
+                     'true' if df_fragment else 'false'))
 
         port_no = ovs_vsctl("get Interface %s ofport" % tun_name)
         if port_no == "-1":
@@ -268,7 +275,7 @@ class Logical_Switch(object):
         self.tunnels[tunnel['dest_ip']] = (port_no,
                                            tun_name,
                                            tunnel['dest_ip'],
-                                           tunnel_key)
+                                           tunnel['tunnel_key'])
 
         add_bfd(tunnel['dest_ip'])
         ovs_ofctl("add-flow %s table=0,in_port=%s,priority=100,"
@@ -285,25 +292,11 @@ class Logical_Switch(object):
         vlog.info("add flow resubmit to table 1 ,tunnel => %s is on port %s"
                 % (tunnel['dest_ip'],port_no))
 
-        #if tunnel_key != self.tunnel_key:
-        #    ovs_ofctl("add-flow %s table=0,in_port=%s,priority=100,"
-        #              "action=learn(table=1,"
-        #              "priority=700,idle_timeout=15,cookie=0x5000,"
-        #              "NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],"
-        #              "output:NXM_OF_IN_PORT[]),resubmit(,1)"
-        #              % (self.short_name, port_no))
-        #    vlog.info("added mac learn rule for tunnel[%s], at port %s" %
-        #              (tunnel['dest_ip'],port_no))
-        #ovs_ofctl("add-flow %s table=0,priority=100,in_port=%s,"
-        #          "actions=resubmit(,1)"
-        #          % (self.short_name, port_no))
-        #vlog.info("add flow resubmit to table 1 ,tunnel => %s is on port %s"
-        #        % (tunnel['dest_ip'],port_no))
-
+       
     def del_tunnel(self, tunnel):
         vlog.info("removing tunnel %s" % tunnel)
         if tunnel not in self.tunnels.keys():
-            vlog.info("tunnel %s hs not been created yet")
+            vlog.info("tunnel %s has not been created yet")
             return
         port_no, tun_name, remote_ip, tunnel_key = self.tunnels[tunnel]
         ovs_ofctl("del-flows %s table=0,in_port=%s"
@@ -343,7 +336,22 @@ class Logical_Switch(object):
 
         ovs_ofctl("add-flow %s table=1,priority=1000,dl_dst=%s,action=%s"
                   % (self.short_name, mac, port_no))
+        global arp_responder:
+        if arp_responder == False:
+            return
 
+        ipaddr =  vtep_ctl( '--columns=ipaddr find Ucast_Macs_Remote MAC="\"%s\""'
+                           % mac).replace('\"','').split(':')[2].strip()
+        if ipaddr:
+            ovs_ofctl("add-flow %s table=1,priority=10,dl_type=0x0806, "
+                      "nw_dst=%s,actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[], mod_dl_src:%s, "
+                      "load:0x2->NXM_OF_ARP_OP[], move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[], "
+                      "move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[], "
+                      "load:0x00005e000201->NXM_NX_ARP_SHA[], load:0x0a0a0a01->NXM_OF_ARP_SPA[],"
+                       "in_port" %(self.short_name, ipaddr, mac))
+
+        #ovs-ofctl add-flow "table=105, dl_type=0x0806, nw_dst=10.10.10.1, actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[], mod_dl_src:00:00:5E:00:02:01, load:0x2->NXM_OF_ARP_OP[], move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[], move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[], load:0x00005e000201->NXM_NX_ARP_SHA[], load:0x0a0a0a01->NXM_OF_ARP_SPA[], in_port"
+    
     def del_remote_mac(self, mac):
         ovs_ofctl("del-flows %s table=1,dl_dst=%s" % (self.short_name, mac))
 
@@ -471,7 +479,7 @@ def get_vtep_tunnel(remote_ip):
     local_ip = get_pref_src(remote_ip)
     column = vtep_ctl("--columns=_uuid find physical_locator "
                       "dst_ip=%s" % local_ip)
-    local = column.partition(":")[2].strip()
+    local = column.partition(":")[2].strip('"')
     if not local:
         return (None, None, None)
 
@@ -696,6 +704,10 @@ def del_binding(binding, ls):
 
 
 def handle_physical():
+    sw_tunnel_ips = vtep_ctl("get physical_switch %s tunnel_ips"
+                          % ps_name).strip('[]').replace('\"','').split(",")
+    if sw_tunnel_ips != Tunnel_Ips
+
     switch_list = vtep_ctl("list-ls").splitlines()
     for ls_name in switch_list:
         if ls_name not in Lswitches.keys():
@@ -723,7 +735,7 @@ def handle_physical():
         binding_set = set(vtep_ctl("list-bindings %s %s"
                                    % (ps_name, pp_name)).splitlines())
         switch_list = vtep_ctl("list-ls").splitlines()
-        for b in binding_set:
+        for b in binding_set: use unknown-dst for floodi
             vlan, ls_name = b.split()
 
             binding = "%s-%s" % (vlan, pp_name)
@@ -753,8 +765,21 @@ def handle_physical():
             vtep_ctl("clear-local-macs %s" % Lswitches[ls_name].name)
             del Lswitches[ls_name]
 
+def list_tunnel_ips():
+    return vtep_ctl("get physical_switch %s tunnel_ips"
+                          % ps_name).strip('[]').replace('\"','').split(",")
 
-def setup():
+
+def setup(tunnel_ips):
+    if  not tunnel_ips[0]:
+        ovs.util.ovs_fatal(0, "at least one 'tunnel_ips' should be set", vlog)
+
+    global Tunnel_Ips
+    if Tunnel_Ips == tunnel_ips:
+        return
+    
+    Tunnel_Ips = tunnel_ips
+
     br_list = ovs_vsctl("list-br").split()
     if (ps_name not in br_list):
         ovs.util.ovs_fatal(0, "couldn't find OVS bridge %s" % ps_name, vlog)
@@ -765,14 +790,7 @@ def setup():
     call_prog("vtep-ctl", ["set", "physical_switch", ps_name,
                            'description="OVS VTEP Emulator"'])
 
-    tunnel_ips = vtep_ctl("get physical_switch %s tunnel_ips"
-                          % ps_name).strip('[]').replace('\"','').split(",")
-    if  not tunnel_ips[0]:
-        ovs.util.ovs_fatal(0, "at least one 'tunnel_ips' should be set", vlog)
-
-    global Tunnel_Ips
-    Tunnel_Ips = tunnel_ips
-
+   
     ovs_ofctl("del-flows %s" % ps_name)
 
     # Remove any logical bridges from the previous run
@@ -828,8 +846,13 @@ def main():
                         help="connect to DATABASE")
     parser.add_argument("--version", action="version",
                         version="%s %s" % (ovs.util.PROGRAM_NAME, VERSION))
+    parser.add_argument('--fragment', action='store_true',
+                        help="allow path MTU discovery ,default false")
     parser.add_argument('--auto_flood', action='store_true',
                         help="dont use unknown-dst for flooding")
+    parser.add_argument('--arp_response', action='store_true',
+                        help="generate arp_responce flow for known remote_macs")
+
     ovs.vlog.add_args(parser)
     ovs.daemon.add_args(parser)
     args = parser.parse_args()
@@ -849,6 +872,12 @@ def main():
     global auto_flood
     if args.auto_flood:
         auto_flood = args.auto_flood
+    global df_fragmnet
+    if args.fragment:
+        df_fragment = args.df_fragment
+    global arp_responder
+    if args.arp_response:
+        arp_responder= args.arp_response
 
     ovs.daemon.daemonize()
 
@@ -858,13 +887,14 @@ def main():
     if error:
         ovs.util.ovs_fatal(error, "could not create unixctl server", vlog)
 
-    setup()
 
     while True:
+        setup(list_tunnel_ips())
+        
         unixctl.run()
         if exiting:
             break
-
+        
         handle_physical()
 
         for ls_name, ls in six.iteritems(Lswitches):
