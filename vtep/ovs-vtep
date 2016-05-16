@@ -18,6 +18,7 @@
 
 import argparse
 from pyroute2 import IPDB
+import os
 import re
 import shlex
 import subprocess
@@ -54,7 +55,7 @@ bfd_bridge = "vtep_bfd"
 bfd_ref = {}
 database = None
 auto_flood = False
-df_fragmnet = False
+df_fragment = False
 arp_responder = False
 
 def call_prog(prog, args_list):
@@ -238,7 +239,7 @@ class Logical_Switch(object):
             tunnel_key = self.tunnel_key
             local = True
         vlog.info("%s{%s} adding %s tunnel type %s  dest_ip = %s key = %s" % (
-                  'local' if local else 'outer'
+                  'local' if local else 'outer',
                   self.short_name,
                   self.name,
                   tunnel['tunnel_type'],
@@ -336,7 +337,7 @@ class Logical_Switch(object):
 
         ovs_ofctl("add-flow %s table=1,priority=1000,dl_dst=%s,action=%s"
                   % (self.short_name, mac, port_no))
-        global arp_responder:
+        global arp_responder
         if arp_responder == False:
             return
 
@@ -704,10 +705,6 @@ def del_binding(binding, ls):
 
 
 def handle_physical():
-    sw_tunnel_ips = vtep_ctl("get physical_switch %s tunnel_ips"
-                          % ps_name).strip('[]').replace('\"','').split(",")
-    if sw_tunnel_ips != Tunnel_Ips
-
     switch_list = vtep_ctl("list-ls").splitlines()
     for ls_name in switch_list:
         if ls_name not in Lswitches.keys():
@@ -735,7 +732,7 @@ def handle_physical():
         binding_set = set(vtep_ctl("list-bindings %s %s"
                                    % (ps_name, pp_name)).splitlines())
         switch_list = vtep_ctl("list-ls").splitlines()
-        for b in binding_set: use unknown-dst for floodi
+        for b in binding_set:
             vlan, ls_name = b.split()
 
             binding = "%s-%s" % (vlan, pp_name)
@@ -777,7 +774,8 @@ def setup(tunnel_ips):
     global Tunnel_Ips
     if Tunnel_Ips == tunnel_ips:
         return
-    
+   
+    vlog.info("switch tunnel_ips modified new tunnel_ips %s" % tunnel_ips)
     Tunnel_Ips = tunnel_ips
 
     br_list = ovs_vsctl("list-br").split()
@@ -834,6 +832,11 @@ def setup(tunnel_ips):
     for ls_name in vtep_ls:
         vtep_ctl("clear-local-macs %s" % ls_name)
 
+def add_to_exe_path(path, as_prefix=True):
+    if as_prefix:
+        os.environ["PATH"] = path + os.pathsep + os.environ["PATH"]
+    else:
+        os.environ["PATH"] += os.pathsep + path
 
 def main():
     parser = argparse.ArgumentParser()
@@ -859,6 +862,8 @@ def main():
     ovs.vlog.handle_args(args)
     ovs.daemon.handle_args(args)
 
+    add_to_exe_path(os.path.dirname(os.path.realpath(__file__)))
+
     global root_prefix
     if args.root_prefix:
         root_prefix = args.root_prefix
@@ -874,7 +879,7 @@ def main():
         auto_flood = args.auto_flood
     global df_fragmnet
     if args.fragment:
-        df_fragment = args.df_fragment
+        df_fragment = args.fragment
     global arp_responder
     if args.arp_response:
         arp_responder= args.arp_response
