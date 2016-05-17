@@ -466,11 +466,11 @@ def dequote(s):
 def get_pref_src(remote_ip):
     '''In the general case, where there are mulple ip's,get 
        the source ip according to the destination'''
-    vlog.info("remote ip = %s" %remote_ip) 
+    #vlog.info("remote ip = %s" %remote_ip) 
     ip = IPDB()
     rt = ip.routes[{'dst':remote_ip}]
     src = rt['prefsrc']
-    vlog.info('source ip for %s is %s' %(remote_ip, src))
+    #vlog.info('source ip for %s is %s' %(remote_ip, src))
     ip.release()    
     return src
 
@@ -504,8 +504,8 @@ def create_vtep_tunnel(remote_ip):
         return None
 
     if not tunnel:
-        vlog.info("creating tunnel record in vtep for remote_ip:%s"
-                  % remote_ip)
+        #vlog.info("creating tunnel record in vtep for remote_ip:%s"
+        #          % remote_ip)
         tunnel = vtep_ctl("add physical_switch %s tunnels @tun -- "
                           "--id=@tun create Tunnel local=%s remote=%s"
                           % (ps_name, local, remote))
@@ -776,6 +776,19 @@ def setup(tunnel_ips):
         return
    
     vlog.info("switch tunnel_ips modified new tunnel_ips %s" % tunnel_ips)
+    global Lswitches
+    if Lswitches.keys():
+        vlog.info("cleaning old switch entries for %s" % Lswitches.keys())
+        for ls_name in Lswitches.keys():
+            ls = Lswitches[ls_name]
+            if not len(ls.ports) and not ls.tunnels:
+                ls.cleanup_ls()
+                ovs_vsctl("del-br %s" % Lswitches[ls_name].short_name)
+                vlog.info("cleaning switch %s" % ls_name)
+                vtep_ctl("clear-local-macs %s" % Lswitches[ls_name].name)
+                del Lswitches[ls_name]
+        Lswitches = {}
+         
     Tunnel_Ips = tunnel_ips
 
     br_list = ovs_vsctl("list-br").split()
