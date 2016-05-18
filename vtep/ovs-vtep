@@ -890,7 +890,7 @@ def main():
     global auto_flood
     if args.auto_flood:
         auto_flood = args.auto_flood
-    global df_fragmnet
+    global df_fragment
     if args.no_fragment:
         df_fragment = False
     global arp_responder
