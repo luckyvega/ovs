@@ -55,7 +55,7 @@ bfd_bridge = "vtep_bfd"
 bfd_ref = {}
 database = None
 auto_flood = False
-df_fragment = False
+df_fragment = True
 arp_responder = False
 
 def call_prog(prog, args_list):
@@ -862,7 +862,7 @@ def main():
                         help="connect to DATABASE")
     parser.add_argument("--version", action="version",
                         version="%s %s" % (ovs.util.PROGRAM_NAME, VERSION))
-    parser.add_argument('--fragment', action='store_true',
+    parser.add_argument('--no_fragment', action='store_true',
                         help="allow path MTU discovery ,default false")
     parser.add_argument('--auto_flood', action='store_true',
                         help="dont use unknown-dst for flooding")
@@ -891,8 +891,8 @@ def main():
     if args.auto_flood:
         auto_flood = args.auto_flood
     global df_fragmnet
-    if args.fragment:
-        df_fragment = args.fragment
+    if args.no_fragment:
+        df_fragment = False
     global arp_responder
     if args.arp_response:
         arp_responder= args.arp_response
