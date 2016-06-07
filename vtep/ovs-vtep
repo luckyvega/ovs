@@ -17,6 +17,7 @@
 #     - Doesn't support multicast other than "unknown-dst"
 
 import argparse
+import netaddr
 from pyroute2 import IPDB
 import os
 import re
@@ -341,15 +342,18 @@ class Logical_Switch(object):
         if arp_responder == False:
             return
 
-        ipaddr =  vtep_ctl( '--columns=ipaddr find Ucast_Macs_Remote MAC="\"%s\""'
-                           % mac).replace('\"','').split(':')[2].strip()
+        ipaddr =  vtep_ctl( '--columns=ipaddr find Ucast_Macs_Remote MAC=\'"%s"\''
+                           % mac).replace('\"','').split(':')[1].strip()
         if ipaddr:
-            ovs_ofctl("add-flow %s table=1,priority=10,dl_type=0x0806, "
-                      "nw_dst=%s,actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[], mod_dl_src:%s, "
+            mac = netaddr.EUI(mac, dialect=netaddr.mac_unix)
+            ip = netaddr.IPAddress(ipaddr)
+
+            ovs_ofctl("add-flow %(br_name)s \"table=1,priority=10,dl_type=0x0806, "
+                      "nw_dst=%(ip)s,actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[], mod_dl_src:%(mac)s, "
                       "load:0x2->NXM_OF_ARP_OP[], move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[], "
                       "move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[], "
-                      "load:0x00005e000201->NXM_NX_ARP_SHA[], load:0x0a0a0a01->NXM_OF_ARP_SPA[],"
-                       "in_port" %(self.short_name, ipaddr, mac))
+                      "load:%(mac)#x->NXM_NX_ARP_SHA[], load:%(ip)#x->NXM_OF_ARP_SPA[],"
+                       "in_port\"" % {'br_name': self.short_name, 'ip': ip, 'mac': mac})
 
         #ovs-ofctl add-flow "table=105, dl_type=0x0806, nw_dst=10.10.10.1, actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[], mod_dl_src:00:00:5E:00:02:01, load:0x2->NXM_OF_ARP_OP[], move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[], move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[], load:0x00005e000201->NXM_NX_ARP_SHA[], load:0x0a0a0a01->NXM_OF_ARP_SPA[], in_port"
     
@@ -467,11 +471,18 @@ def get_pref_src(remote_ip):
     '''In the general case, where there are mulple ip's,get 
        the source ip according to the destination'''
     #vlog.info("remote ip = %s" %remote_ip) 
-    ip = IPDB()
-    rt = ip.routes[{'dst':remote_ip}]
-    src = rt['prefsrc']
+    ipdb = IPDB()
+    src = None
+    for route in ipdb.routes:
+        if route['dst'] == 'default':
+            continue
+        network = netaddr.IPNetwork(route['dst'])
+        ip = netaddr.IPAddress(remote_ip)
+        if ip in network:
+            src = route['prefsrc']
+            break
     #vlog.info('source ip for %s is %s' %(remote_ip, src))
-    ip.release()    
+    ipdb.release()    
     return src
 
 
